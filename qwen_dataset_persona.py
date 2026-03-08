@@ -32,7 +32,7 @@ persona_prompt = personas.get(RAW_TRAIT, "")
 llm = LLM(
     model=MODEL_PATH,
     trust_remote_code=True,
-    gpu_memory_utilization=0.8,
+    gpu_memory_utilization=0.2,
     enforce_eager=True
 )
 
@@ -42,7 +42,7 @@ sampling_params = SamplingParams(
     top_k=20,
     min_p=0.0,
     max_tokens=4096,
-    seed=42 if CURRENT_TRIAL == "trial1" else 1337
+    seed=42 
 )
 
 def run_mission():
