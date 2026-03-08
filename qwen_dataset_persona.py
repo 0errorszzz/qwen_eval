@@ -11,7 +11,7 @@ RAW_TRAIT = "high_neuroticism"
 DATASET = sys.argv[1] if len(sys.argv) > 1 else "aime24"
 CURRENT_TRIAL = sys.argv[2] if len(sys.argv) > 2 else "trial1"
 
-MODEL_PATH = "Qwen/Qwen3-1.7B"
+MODEL_PATH = "Qwen/Qwen3-1.7B-Instruct"
 TARGET_TRAIT = f"persona_{RAW_TRAIT}"
 
 # 按照你的要求命名文件夹
