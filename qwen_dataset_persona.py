@@ -45,10 +45,10 @@ def extract_boxed_answer(text: str):
     if match:
         return match.group(1).strip()
 
-    # 临时兜底：如果模型写了 Final: ...
-    fallback = re.search(r"Final:\s*(.+)", text)
-    if fallback:
-        return fallback.group(1).strip()
+    # 逻辑 2: 找加了空格或换行的 boxed
+    match_loose = re.search(r"boxed\s*\{\s*([^}]*)\s*\}", text)
+    if match_loose:
+        return match_loose.group(1).strip()
 
     return None
 
@@ -66,14 +66,14 @@ def extract_thought(text: str):
 
 def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
     user_content = (
-        f"{persona_prompt}\n\n"
-        f"{problem}\n\n"
+        f"Character Profile: {persona_prompt}\n\n"
+        f"Task: Solve the following math problem.\n"
+        f"Problem: {problem}\n\n"
+        f"Directives:\n"
+        f"1. You MUST reason inside <think> tags.\n"
+        f"2. Your reasoning should be straight to the point. Stop over-analyzing.\n"
+        f"3. You MUST end your response with: Final: \\boxed{{answer}}\n"
         f"/think\n"
-        f"Solve the problem carefully but keep the reasoning concise.\n"
-        f"Do not restate the entire problem.\n"
-        f"After thinking, immediately output exactly one final line in this format:\n"
-        f"Final: \\boxed{{your_answer}}\n"
-        f"Do not output anything after that final line."
     )
 
     messages = [{"role": "user", "content": user_content}]
@@ -83,6 +83,7 @@ def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
         tokenize=False,
         add_generation_prompt=True,
         enable_thinking=True,
+        presence_penalty=0.2，
     )
 
 
