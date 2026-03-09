@@ -29,7 +29,7 @@ MIN_P = 0.0
 MAX_TOKENS =16384
 
 # 小 batch 降低崩溃概率
-BATCH_SIZE = 4
+BATCH_SIZE = 15
 
 TRIAL_SEED_MAP = {
     "trial1": 42,
@@ -40,11 +40,13 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
 # ===================== 2. 解析函数 =====================
 def extract_boxed_answer(text: str):
-    # 优先认 \boxed{}
+    # 逻辑 A: 找标准 boxed
     match = re.search(r"\\boxed\{([^}]*)\}", text)
-    if match:
-        return match.group(1).strip()
-    return None
+    if match: return match.group(1).strip()
+    
+    # 逻辑 B: 找最后出现的数字（针对 AIME 填空题非常有效）
+    nums = re.findall(r"\d+", text)
+    return nums[-1] if nums else None
 
 
 def extract_thought(text: str):
@@ -72,7 +74,7 @@ def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
         tokenize=False,
         add_generation_prompt=True,
         enable_thinking=True,
-        thinking_budget=8192,
+        thinking_budget=3072,
     )
 
 
