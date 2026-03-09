@@ -26,7 +26,7 @@ TOP_K = 20
 MIN_P = 0.0
 
 # 参考文档，给足
-MAX_TOKENS =32768
+MAX_TOKENS =16384
 
 # 小 batch 降低崩溃概率
 BATCH_SIZE = 4
@@ -126,7 +126,7 @@ def run_mission():
                     continue
 
     pending_data = [d for d in all_data if d.get("id") not in done_ids]
-    pending_data = pending_data[:3]
+    
 
     if not pending_data:
         print(f"✅ {DATASET} {CURRENT_TRIAL} 已完成。", flush=True)
