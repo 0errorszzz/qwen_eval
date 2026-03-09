@@ -26,13 +26,13 @@ TOP_K = 20
 MIN_P = 0.0
 
 
-MAX_TOKENS =4096
+MAX_TOKENS =32000
 
 # 小 batch 降低崩溃概率
-BATCH_SIZE = 15
+BATCH_SIZE = 5
 
 TRIAL_SEED_MAP = {
-    "trial1": 42,
+    "trial1": 1,
     "trial2": 1337,
 }
 TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
@@ -76,7 +76,6 @@ def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
         tokenize=False,
         add_generation_prompt=True,
         enable_thinking=True,
-        thinking_budget=1024,
     )
 
 
