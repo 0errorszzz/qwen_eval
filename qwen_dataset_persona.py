@@ -64,7 +64,8 @@ def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
     user_content = (
         f"{persona_prompt}\n\n"
         f"{problem}\n\n"
-        f"Please reason step by step, and put your final answer within \\boxed{{}}."
+        "Please reason step by step. \n"
+        "Crucially, conclude your response with a separate line starting with 'Final Answer: ' followed by your answer in \\boxed{}."
     )
 
     messages = [{"role": "user", "content": user_content}]
