@@ -40,13 +40,18 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
 # ===================== 2. 解析函数 =====================
 def extract_boxed_answer(text: str):
-    """
-    只从 </think> 之后提取 boxed。
-    没有 boxed 就返回 None，不做“最后一个数字”兜底。
-    """
-    answer_area = text.split("</think>", 1)[1] if "</think>" in text else text
-    match = re.search(r"\\boxed\{\s*(.*?)\s*\}", answer_area, flags=re.DOTALL)
-    return match.group(1).strip() if match else None
+    # 1. 严格隔离思考区
+    answer_area = text.split("</think>")[-1].strip()
+    
+    # 2. 使用非贪婪匹配获取内容
+    # 注意：如果 LaTeX 嵌套非常深，正则可能还是会截断，但 90% 的 Math 题够用了
+    match = re.search(r"\\boxed\{(.+?)\}", answer_area, flags=re.DOTALL)
+    
+    if match:
+        return match.group(1).strip()
+    
+    # 3. 实在没有就返回 None，代表该题推理不完整或格式错误
+    return None
 
 
 def extract_thought(text: str):
