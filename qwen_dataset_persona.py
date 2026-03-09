@@ -26,7 +26,7 @@ TOP_K = 20
 MIN_P = 0.0
 
 
-MAX_TOKENS =32000
+MAX_TOKENS =32786
 
 # 小 batch 降低崩溃概率
 BATCH_SIZE = 5
