@@ -60,7 +60,7 @@ def extract_thought(text: str):
 
 def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
     user_content = (
-        f"{persona_prompt}\n\n"
+        
         f"{problem}\n\n"
         f"Please reason step by step, and put your final answer within \\boxed{{}}."
     )
