@@ -107,7 +107,7 @@ sampling_params = SamplingParams(
     min_p=MIN_P,
     max_tokens=MAX_TOKENS,
     seed=TRIAL_SEED,
-    presence_penalty=1.5，
+    presence_penalty=1.5,
 )
 
 
