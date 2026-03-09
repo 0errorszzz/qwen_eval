@@ -26,7 +26,7 @@ TOP_K = 20
 MIN_P = 0.0
 
 # 不要再往上加了，先稳住
-MAX_TOKENS =20000
+MAX_TOKENS =4069
 
 # 小 batch 降低崩溃概率
 BATCH_SIZE = 4
@@ -101,7 +101,7 @@ sampling_params = SamplingParams(
     min_p=MIN_P,
     max_tokens=MAX_TOKENS,
     seed=TRIAL_SEED,
-    presence_penalty=1.5,
+    presence_penalty=2.0,
 )
 
 
