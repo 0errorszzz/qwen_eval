@@ -25,8 +25,11 @@ TOP_P = 0.95
 TOP_K = 20
 MIN_P = 0.0
 
-# 先保守一点；如果你后面确认 4096 没问题，再改回去
-MAX_TOKENS = 4096
+# 先保守一点，避免太长导致不稳定
+MAX_TOKENS = 1024
+
+# 小批量跑，避免 vLLM 一次吞太多
+BATCH_SIZE = 4
 
 # trial 对应不同 seed，temperature 不变
 TRIAL_SEED_MAP = {
@@ -88,16 +91,22 @@ def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
 
 
 # ===================== 3. 初始化 =====================
+print("1. loading persona", flush=True)
 with open(PERSONA_FILE, "r", encoding="utf-8") as f:
     personas = yaml.safe_load(f)
 persona_prompt = personas.get(RAW_TRAIT, "")
 
+print("2. loading tokenizer", flush=True)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+print("3. tokenizer loaded", flush=True)
 
+print("4. initializing llm", flush=True)
 llm = LLM(
     model=MODEL_PATH,
     gpu_memory_utilization=0.2,
+    enforce_eager=True,
 )
+print("5. llm initialized", flush=True)
 
 sampling_params = SamplingParams(
     temperature=TEMPERATURE,
@@ -126,6 +135,7 @@ def run_mission():
                 except Exception:
                     continue
 
+    print("6. reading dataset", flush=True)
     input_path = DATA_ROOT / DATASET / "test.jsonl"
     with open(input_path, "r", encoding="utf-8") as f:
         all_data = [json.loads(line) for line in f if line.strip()]
@@ -133,52 +143,64 @@ def run_mission():
     pending_data = [d for d in all_data if d.get("id") not in done_ids]
 
     if not pending_data:
-        print(f"✅ {DATASET} {CURRENT_TRIAL} 已达标")
+        print(f"✅ {DATASET} {CURRENT_TRIAL} 已达标", flush=True)
         return
 
-    print(f"📌 Dataset: {DATASET}")
-    print(f"📌 Trial: {CURRENT_TRIAL}")
-    print(f"📌 Seed: {TRIAL_SEED}")
-    print(f"📌 Pending: {len(pending_data)}")
+    print(f"📌 Dataset: {DATASET}", flush=True)
+    print(f"📌 Trial: {CURRENT_TRIAL}", flush=True)
+    print(f"📌 Seed: {TRIAL_SEED}", flush=True)
+    print(f"📌 Total: {len(all_data)}", flush=True)
+    print(f"📌 Pending: {len(pending_data)}", flush=True)
 
+    print("7. building prompts", flush=True)
     prompts = []
     for entry in pending_data:
         problem = entry.get("problem") or entry.get("question") or ""
         prompt = build_prompt(tokenizer, persona_prompt, problem)
         prompts.append(prompt)
 
-    print("🚀 Starting generation...")
-    outputs = llm.generate(prompts, sampling_params)
-    print("✅ Generation finished. Writing outputs...")
+    print("8. starting batched generation", flush=True)
+
+    total_batches = (len(pending_data) + BATCH_SIZE - 1) // BATCH_SIZE
 
     with open(output_file, "a", encoding="utf-8") as fout:
-        for entry, out in zip(pending_data, outputs):
-            final_text = out.outputs[0].text
-            pred = extract_boxed_answer(final_text)
-            thought_part = extract_thought(final_text)
+        for start in range(0, len(pending_data), BATCH_SIZE):
+            batch_idx = start // BATCH_SIZE + 1
+            batch_data = pending_data[start:start + BATCH_SIZE]
+            batch_prompts = prompts[start:start + BATCH_SIZE]
 
-            record = {
-                "id": entry.get("id"),
-                "condition": TARGET_TRAIT,
-                "gt": str(entry.get("answer") or entry.get("gt")).replace(",", ""),
-                "preds": [pred],
-                "thought": thought_part,
-                "outs": [{"content": final_text}],
-            }
+            print(f"🚀 Generating batch {batch_idx}/{total_batches}", flush=True)
 
-            # 基本结构自检
-            assert "id" in record
-            assert "condition" in record
-            assert "gt" in record
-            assert "preds" in record
-            assert "thought" in record
-            assert "outs" in record
-            assert isinstance(record["preds"], list)
-            assert isinstance(record["outs"], list)
+            outputs = llm.generate(batch_prompts, sampling_params)
 
-            fout.write(json.dumps(record, ensure_ascii=False) + "\n")
+            for entry, out in zip(batch_data, outputs):
+                final_text = out.outputs[0].text
+                pred = extract_boxed_answer(final_text)
+                thought_part = extract_thought(final_text)
 
-    print(f"✅ Saved to: {output_file}")
+                record = {
+                    "id": entry.get("id"),
+                    "condition": TARGET_TRAIT,
+                    "gt": str(entry.get("answer") or entry.get("gt")).replace(",", ""),
+                    "preds": [pred],
+                    "thought": thought_part,
+                    "outs": [{"content": final_text}],
+                }
+
+                # 基本结构自检
+                assert "id" in record
+                assert "condition" in record
+                assert "gt" in record
+                assert "preds" in record
+                assert "thought" in record
+                assert "outs" in record
+                assert isinstance(record["preds"], list)
+                assert isinstance(record["outs"], list)
+
+                fout.write(json.dumps(record, ensure_ascii=False) + "\n")
+                fout.flush()
+
+    print(f"✅ Saved to: {output_file}", flush=True)
 
 
 if __name__ == "__main__":
