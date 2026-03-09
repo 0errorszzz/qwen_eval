@@ -20,7 +20,7 @@ PERSONA_FILE = Path("persona.yaml")
 DATA_ROOT = Path("data")
 
 # 官方推荐的 thinking mode 参数
-TEMPERATURE = 0.6
+TEMPERATURE = 0.7
 TOP_P = 0.95
 TOP_K = 20
 MIN_P = 0.0
