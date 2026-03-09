@@ -20,15 +20,15 @@ PERSONA_FILE = Path("persona.yaml")
 DATA_ROOT = Path("data")
 
 # 官方推荐的 thinking mode 参数
-TEMPERATURE = 0.7
+TEMPERATURE = 0.6
 TOP_P = 0.95
 TOP_K = 20
 MIN_P = 0.0
 
-# 先稳一点，别太长
+# 不要再往上加了，先稳住
 MAX_TOKENS = 2048
 
-# 小 batch，降低 vLLM / CUDA 崩溃概率
+# 小 batch 降低崩溃概率
 BATCH_SIZE = 4
 
 TRIAL_SEED_MAP = {
@@ -40,15 +40,20 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
 # ===================== 2. 解析函数 =====================
 def extract_boxed_answer(text: str):
-    """只提取 \\boxed{...}，没有就返回 None"""
+    # 优先认 \boxed{}
     match = re.search(r"\\boxed\{([^}]*)\}", text)
     if match:
         return match.group(1).strip()
+
+    # 临时兜底：如果模型写了 Final: ...
+    fallback = re.search(r"Final:\s*(.+)", text)
+    if fallback:
+        return fallback.group(1).strip()
+
     return None
 
 
 def extract_thought(text: str):
-    """尽量提取 thought 内容"""
     closed_match = re.search(r"<think>\s*(.*?)\s*</think>", text, flags=re.DOTALL)
     if closed_match:
         return closed_match.group(1).strip()
@@ -60,24 +65,25 @@ def extract_thought(text: str):
 
 
 def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
-    """用官方 chat template 构造 prompt"""
     user_content = (
         f"{persona_prompt}\n\n"
         f"{problem}\n\n"
         f"/think\n"
-        f"After reasoning, output the final answer as exactly one expression in the form "
-        f"\\boxed{{your_answer}} and nothing else after it."
+        f"Solve the problem carefully but keep the reasoning concise.\n"
+        f"Do not restate the entire problem.\n"
+        f"After thinking, immediately output exactly one final line in this format:\n"
+        f"Final: \\boxed{{your_answer}}\n"
+        f"Do not output anything after that final line."
     )
 
     messages = [{"role": "user", "content": user_content}]
 
-    prompt = tokenizer.apply_chat_template(
+    return tokenizer.apply_chat_template(
         messages,
         tokenize=False,
         add_generation_prompt=True,
         enable_thinking=True,
     )
-    return prompt
 
 
 # ===================== 3. 初始化 =====================
@@ -109,18 +115,16 @@ sampling_params = SamplingParams(
 )
 
 
-# ===================== 4. 推理逻辑 =====================
+# ===================== 4. 主逻辑 =====================
 def run_mission():
     output_dir = BASE_OUTPUT_DIR / CURRENT_TRIAL / DATASET
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / f"{DATASET}_{TARGET_TRAIT}_T{TEMPERATURE}.jsonl"
 
-    # 读取输入
     input_path = DATA_ROOT / DATASET / "test.jsonl"
     with open(input_path, "r", encoding="utf-8") as f:
         all_data = [json.loads(line) for line in f if line.strip()]
 
-    # 断点续传
     done_ids = set()
     if output_file.exists():
         with open(output_file, "r", encoding="utf-8") as f:
@@ -131,6 +135,7 @@ def run_mission():
                     continue
 
     pending_data = [d for d in all_data if d.get("id") not in done_ids]
+    pending_data = pending_data[:3]
 
     if not pending_data:
         print(f"✅ {DATASET} {CURRENT_TRIAL} 已完成。", flush=True)
