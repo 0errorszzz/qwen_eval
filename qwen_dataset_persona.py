@@ -40,22 +40,30 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
 # ===================== 2. 解析函数 =====================
 def extract_boxed_answer(text: str):
-    # 找最后一个 \boxed{} 而不是第一个
-    # 用平衡括号处理嵌套
-    last_idx = text.rfind(r'\boxed{')  # rfind = 从右边找
+    # 1. 尝试定位最后一个 \boxed{
+    last_idx = text.rfind(r'\boxed{')
     if last_idx != -1:
-        start = last_idx + len(r'\boxed{')
+        # 截取从 \boxed{ 开始到结尾的部分
+        # 这样处理嵌套更安全
+        search_stack = text[last_idx + len(r'\boxed{'):]
+        content = ""
         depth = 1
-        i = start
-        while i < len(text) and depth > 0:
-            if text[i] == '{':
+        for char in search_stack:
+            if char == '{':
                 depth += 1
-            elif text[i] == '}':
+            elif char == '}':
                 depth -= 1
-            i += 1
-        return text[start:i-1].strip()
+            
+            if depth == 0:
+                break
+            content += char
+            
+        return content.strip()
     
-    nums = re.findall(r"\d+", text)
+    # 2. 如果没找到 \boxed，清理掉思考过程后再找数字
+    # 否则 nums[-1] 可能会抓到 <think> 里的年份或中间变量
+    clean_text = text.split("</think>")[-1] if "</think>" in text else text
+    nums = re.findall(r"\d+", clean_text)
     return nums[-1] if nums else None
 
 
