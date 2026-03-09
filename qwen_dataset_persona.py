@@ -72,6 +72,7 @@ def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
         tokenize=False,
         add_generation_prompt=True,
         enable_thinking=True,
+        thinking_budget=8192,
     )
 
 
@@ -91,7 +92,6 @@ llm = LLM(
     model=MODEL_PATH,
     gpu_memory_utilization=0.8,
     enforce_eager=True,
-    thinking_budget=8192,
 )
 print("✅ vLLM initialized.", flush=True)
 
