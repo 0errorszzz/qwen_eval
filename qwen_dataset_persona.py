@@ -40,11 +40,21 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
 # ===================== 2. 解析函数 =====================
 def extract_boxed_answer(text: str):
-    # 逻辑 A: 找标准 boxed
-    match = re.search(r"\\boxed\{([^}]*)\}", text)
-    if match: return match.group(1).strip()
+    # 找最后一个 \boxed{} 而不是第一个
+    # 用平衡括号处理嵌套
+    last_idx = text.rfind(r'\boxed{')  # rfind = 从右边找
+    if last_idx != -1:
+        start = last_idx + len(r'\boxed{')
+        depth = 1
+        i = start
+        while i < len(text) and depth > 0:
+            if text[i] == '{':
+                depth += 1
+            elif text[i] == '}':
+                depth -= 1
+            i += 1
+        return text[start:i-1].strip()
     
-    # 逻辑 B: 找最后出现的数字（针对 AIME 填空题非常有效）
     nums = re.findall(r"\d+", text)
     return nums[-1] if nums else None
 
