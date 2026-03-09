@@ -39,19 +39,41 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
 
 # ===================== 2. 解析函数 =====================
+import re
+
 def extract_boxed_answer(text: str):
-    # 1. 严格隔离思考区
-    answer_area = text.split("</think>")[-1].strip()
+    # 1. 物理隔离：只在正式回复区找，过滤掉所有的思维链噪音
+    if "</think>" in text:
+        answer_area = text.split("</think>")[-1].strip()
+    else:
+        answer_area = text.strip()
+
+    # 2. 寻找最后一个 \boxed{
+    # 推理模型在修正答案时，通常会把最终结论放在最后一个 boxed 里
+    start_pattern = r"\boxed{"
+    last_idx = answer_area.rfind(start_pattern)
     
-    # 2. 使用非贪婪匹配获取内容
-    # 注意：如果 LaTeX 嵌套非常深，正则可能还是会截断，但 90% 的 Math 题够用了
-    match = re.search(r"\\boxed\{(.+?)\}", answer_area, flags=re.DOTALL)
+    if last_idx == -1:
+        return None  # 格式不对或没写完，直接返回 None，保持数据的纯净
+        
+    # 3. 标准的平衡括号提取逻辑
+    # 这样可以稳健地抓取类似 \boxed{\frac{123}{1}} 这种包含内部大括号的内容
+    content = ""
+    start_pos = last_idx + len(start_pattern)
+    depth = 1
     
-    if match:
-        return match.group(1).strip()
-    
-    # 3. 实在没有就返回 None，代表该题推理不完整或格式错误
-    return None
+    for i in range(start_pos, len(answer_area)):
+        char = answer_area[i]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+        
+        if depth == 0:
+            break
+        content += char
+        
+    return content.strip() if content else None
 
 
 def extract_thought(text: str):
