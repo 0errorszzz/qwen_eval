@@ -40,30 +40,24 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
 # ===================== 2. 解析函数 =====================
 def extract_boxed_answer(text: str):
-    # 1. 尝试定位最后一个 \boxed{
-    last_idx = text.rfind(r'\boxed{')
+    # 第一步：只在 </think> 之后的内容里找答案
+    # 这是通用的，因为官方 Qwen/DeepSeek 推理模型都会遵循这个结构
+    if "</think>" in text:
+        answer_area = text.split("</think>")[-1].strip()
+    else:
+        answer_area = text.strip()
+
+    # 第二步：在你定义的“结果区”里找最后一个 \boxed
+    last_idx = answer_area.rfind(r'\boxed{')
     if last_idx != -1:
-        # 截取从 \boxed{ 开始到结尾的部分
-        # 这样处理嵌套更安全
-        search_stack = text[last_idx + len(r'\boxed{'):]
-        content = ""
-        depth = 1
-        for char in search_stack:
-            if char == '{':
-                depth += 1
-            elif char == '}':
-                depth -= 1
-            
-            if depth == 0:
-                break
-            content += char
-            
+        # ... 这里用你那个非常棒的 depth 计数器逻辑 ...
+        # 注意是在 answer_area 里找
+        search_stack = answer_area[last_idx + len(r'\boxed{'):]
+        # ... 提取逻辑 ...
         return content.strip()
-    
-    # 2. 如果没找到 \boxed，清理掉思考过程后再找数字
-    # 否则 nums[-1] 可能会抓到 <think> 里的年份或中间变量
-    clean_text = text.split("</think>")[-1] if "</think>" in text else text
-    nums = re.findall(r"\d+", clean_text)
+
+    # 第三步：如果结果区没找到 \boxed，再找结果区最后的数字
+    nums = re.findall(r"\d+", answer_area)
     return nums[-1] if nums else None
 
 
