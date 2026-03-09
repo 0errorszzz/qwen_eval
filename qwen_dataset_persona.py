@@ -25,8 +25,8 @@ TOP_P = 0.95
 TOP_K = 20
 MIN_P = 0.0
 
-# 不要再往上加了，先稳住
-MAX_TOKENS =16384
+# 参考文档，给足
+MAX_TOKENS =32768
 
 # 小 batch 降低崩溃概率
 BATCH_SIZE = 4
@@ -60,7 +60,7 @@ def extract_thought(text: str):
 
 def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
     user_content = (
-        
+        f"{persona_prompt}\n\n"
         f"{problem}\n\n"
         f"Please reason step by step, and put your final answer within \\boxed{{}}."
     )
@@ -91,6 +91,7 @@ llm = LLM(
     model=MODEL_PATH,
     gpu_memory_utilization=0.8,
     enforce_eager=True,
+    thinking_budget=8192,
 )
 print("✅ vLLM initialized.", flush=True)
 
