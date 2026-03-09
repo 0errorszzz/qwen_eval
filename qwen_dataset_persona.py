@@ -2,11 +2,7 @@ import json
 import yaml
 import re
 import sys
-import os
 from pathlib import Path
-
-# 强制使用特定显卡，避开可能的冲突
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0" 
 
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
@@ -23,62 +19,95 @@ BASE_OUTPUT_DIR = Path("qwen_eval_logs_3_1.7")
 PERSONA_FILE = Path("persona.yaml")
 DATA_ROOT = Path("data")
 
-# 采样参数
+# 官方推荐的 thinking mode 参数
 TEMPERATURE = 0.6
-TRIAL_SEED_MAP = {"trial1": 42, "trial2": 1337}
+TOP_P = 0.95
+TOP_K = 20
+MIN_P = 0.0
+
+# 先稳一点，别太长
+MAX_TOKENS = 2048
+
+# 小 batch，降低 vLLM / CUDA 崩溃概率
+BATCH_SIZE = 4
+
+TRIAL_SEED_MAP = {
+    "trial1": 42,
+    "trial2": 1337,
+}
 TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
-# ===================== 2. 解析函数 =====================
 
+# ===================== 2. 解析函数 =====================
 def extract_boxed_answer(text: str):
-    """提取 \boxed{...} 中的内容"""
+    """只提取 \\boxed{...}，没有就返回 None"""
     match = re.search(r"\\boxed\{([^}]*)\}", text)
-    return match.group(1).strip() if match else None
+    if match:
+        return match.group(1).strip()
+    return None
+
 
 def extract_thought(text: str):
-    """提取思考过程"""
+    """尽量提取 thought 内容"""
+    closed_match = re.search(r"<think>\s*(.*?)\s*</think>", text, flags=re.DOTALL)
+    if closed_match:
+        return closed_match.group(1).strip()
+
     if "<think>" in text:
-        parts = text.split("</think>")
-        return parts[0].replace("<think>", "").strip()
-    return text.split("Final answer")[0].strip()
+        return text.split("<think>", 1)[1].strip()
+
+    return text.strip()
+
 
 def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
-    """使用官方模板构造 Prompt"""
+    """用官方 chat template 构造 prompt"""
     user_content = (
-        f"Roleplay Identity: {persona_prompt}\n\n"
-        f"Problem: {problem}\n\n"
-        f"Please reason step by step inside <think> tags, "
-        f"and provide the final answer in \\boxed{{}}."
+        f"{persona_prompt}\n\n"
+        f"{problem}\n\n"
+        f"/think\n"
+        f"After reasoning, output the final answer as exactly one expression in the form "
+        f"\\boxed{{your_answer}} and nothing else after it."
     )
+
     messages = [{"role": "user", "content": user_content}]
-    return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+    prompt = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=True,
+    )
+    return prompt
+
 
 # ===================== 3. 初始化 =====================
-print(f"🚀 Initializing Trial: {CURRENT_TRIAL} for {DATASET}", flush=True)
+print(f"🚀 Initializing {DATASET} | {CURRENT_TRIAL}", flush=True)
 
 with open(PERSONA_FILE, "r", encoding="utf-8") as f:
     personas = yaml.safe_load(f)
 persona_prompt = personas.get(RAW_TRAIT, "")
 
+print("📦 Loading tokenizer...", flush=True)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+print("✅ Tokenizer loaded.", flush=True)
 
-# H100 优化配置
+print("🧠 Initializing vLLM...", flush=True)
 llm = LLM(
     model=MODEL_PATH,
-    trust_remote_code=True,
-    gpu_memory_utilization=0.5,  # 降低比例，防止 Driver Crash
-    enforce_eager=True,          # 保持稳定模式
-    max_model_len=8192,          # 允许较长上下文
-    swap_space=4                 # 增加交换空间作为缓冲
+    gpu_memory_utilization=0.2,
+    enforce_eager=True,
 )
+print("✅ vLLM initialized.", flush=True)
 
 sampling_params = SamplingParams(
     temperature=TEMPERATURE,
-    top_p=0.95,
-    max_tokens=4096,             # 核心：给够模型说话的空间，防止 null
+    top_p=TOP_P,
+    top_k=TOP_K,
+    min_p=MIN_P,
+    max_tokens=MAX_TOKENS,
     seed=TRIAL_SEED,
-    stop=["<|im_end|>", "<|endoftext|>"]
 )
+
 
 # ===================== 4. 推理逻辑 =====================
 def run_mission():
@@ -86,37 +115,46 @@ def run_mission():
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / f"{DATASET}_{TARGET_TRAIT}_T{TEMPERATURE}.jsonl"
 
-    # 读取数据
+    # 读取输入
     input_path = DATA_ROOT / DATASET / "test.jsonl"
     with open(input_path, "r", encoding="utf-8") as f:
         all_data = [json.loads(line) for line in f if line.strip()]
 
-    # 断点续传 (建议重新跑之前先删掉全是 null 的旧文件)
+    # 断点续传
     done_ids = set()
     if output_file.exists():
         with open(output_file, "r", encoding="utf-8") as f:
             for line in f:
-                try: done_ids.add(json.loads(line).get("id"))
-                except: continue
+                try:
+                    done_ids.add(json.loads(line).get("id"))
+                except Exception:
+                    continue
 
     pending_data = [d for d in all_data if d.get("id") not in done_ids]
+
     if not pending_data:
-        print(f"✅ {DATASET} {CURRENT_TRIAL} 已完成。")
+        print(f"✅ {DATASET} {CURRENT_TRIAL} 已完成。", flush=True)
         return
 
     print(f"📌 Total: {len(all_data)} | Pending: {len(pending_data)}", flush=True)
 
-    # 分批推理核心逻辑
-    BATCH_SIZE = 5 
+    total_batches = (len(pending_data) + BATCH_SIZE - 1) // BATCH_SIZE
+
     for i in range(0, len(pending_data), BATCH_SIZE):
-        batch_chunk = pending_data[i : i + BATCH_SIZE]
-        prompts = [build_prompt(tokenizer, persona_prompt, d.get("problem") or d.get("question", "")) for d in batch_chunk]
-        
-        print(f"🚀 Running Batch {i//BATCH_SIZE + 1}/{(len(pending_data)+BATCH_SIZE-1)//BATCH_SIZE}...", flush=True)
-        
+        batch_chunk = pending_data[i:i + BATCH_SIZE]
+        prompts = [
+            build_prompt(tokenizer, persona_prompt, d.get("problem") or d.get("question", ""))
+            for d in batch_chunk
+        ]
+
+        print(
+            f"🚀 Running Batch {i // BATCH_SIZE + 1}/{total_batches} ...",
+            flush=True
+        )
+
         try:
             outputs = llm.generate(prompts, sampling_params)
-            
+
             with open(output_file, "a", encoding="utf-8") as fout:
                 for entry, out in zip(batch_chunk, outputs):
                     final_text = out.outputs[0].text
@@ -131,13 +169,17 @@ def run_mission():
                         "thought": thought_part,
                         "outs": [{"content": final_text}]
                     }
+
                     fout.write(json.dumps(record, ensure_ascii=False) + "\n")
-                fout.flush() # 每一批跑完立刻存盘
+
+                fout.flush()
+
         except Exception as e:
-            print(f"❌ Batch failed with error: {e}")
+            print(f"❌ Batch failed with error: {e}", flush=True)
             continue
 
     print(f"✅ Mission Accomplished. Saved to: {output_file}", flush=True)
+
 
 if __name__ == "__main__":
     run_mission()
