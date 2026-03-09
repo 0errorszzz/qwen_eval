@@ -40,23 +40,34 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
 # ===================== 2. 解析函数 =====================
 def extract_boxed_answer(text: str):
-    # 第一步：只在 </think> 之后的内容里找答案
-    # 这是通用的，因为官方 Qwen/DeepSeek 推理模型都会遵循这个结构
+    # 1. 物理隔离：只在思考区之后（如果有的话）寻找答案
+    # 这样可以完全避免模型在 <think> 里面推演时乱写的 \boxed{} 干扰
     if "</think>" in text:
         answer_area = text.split("</think>")[-1].strip()
     else:
         answer_area = text.strip()
 
-    # 第二步：在你定义的“结果区”里找最后一个 \boxed
+    # 2. 尝试定位最后一个 \boxed{
     last_idx = answer_area.rfind(r'\boxed{')
     if last_idx != -1:
-        # ... 这里用你那个非常棒的 depth 计数器逻辑 ...
-        # 注意是在 answer_area 里找
+        # 提取 \boxed{ 之后的所有文本进行深度匹配
         search_stack = answer_area[last_idx + len(r'\boxed{'):]
-        # ... 提取逻辑 ...
-        return content.strip()
-
-    # 第三步：如果结果区没找到 \boxed，再找结果区最后的数字
+        extracted_value = "" # 这里修正了变量名定义
+        depth = 1
+        for char in search_stack:
+            if char == '{':
+                depth += 1
+            elif char == '}':
+                depth -= 1
+            
+            if depth == 0:
+                break
+            extracted_value += char # 统一使用 extracted_value
+            
+        return extracted_value.strip()
+    
+    # 3. 兜底逻辑：如果没找到 \boxed，在结果区找最后一个数字
+    # 比如 AIME 题目模型最后说 "The answer is 113"
     nums = re.findall(r"\d+", answer_area)
     return nums[-1] if nums else None
 
