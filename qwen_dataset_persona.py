@@ -25,8 +25,8 @@ TOP_P = 0.95
 TOP_K = 20
 MIN_P = 0.0
 
-# 参考文档，给足
-MAX_TOKENS =16384
+
+MAX_TOKENS =8192
 
 # 小 batch 降低崩溃概率
 BATCH_SIZE = 15
@@ -40,36 +40,13 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 
 # ===================== 2. 解析函数 =====================
 def extract_boxed_answer(text: str):
-    # 1. 物理隔离：只在思考区之后（如果有的话）寻找答案
-    # 这样可以完全避免模型在 <think> 里面推演时乱写的 \boxed{} 干扰
-    if "</think>" in text:
-        answer_area = text.split("</think>")[-1].strip()
-    else:
-        answer_area = text.strip()
-
-    # 2. 尝试定位最后一个 \boxed{
-    last_idx = answer_area.rfind(r'\boxed{')
-    if last_idx != -1:
-        # 提取 \boxed{ 之后的所有文本进行深度匹配
-        search_stack = answer_area[last_idx + len(r'\boxed{'):]
-        extracted_value = "" # 这里修正了变量名定义
-        depth = 1
-        for char in search_stack:
-            if char == '{':
-                depth += 1
-            elif char == '}':
-                depth -= 1
-            
-            if depth == 0:
-                break
-            extracted_value += char # 统一使用 extracted_value
-            
-        return extracted_value.strip()
-    
-    # 3. 兜底逻辑：如果没找到 \boxed，在结果区找最后一个数字
-    # 比如 AIME 题目模型最后说 "The answer is 113"
-    nums = re.findall(r"\d+", answer_area)
-    return nums[-1] if nums else None
+    """
+    只从 </think> 之后提取 boxed。
+    没有 boxed 就返回 None，不做“最后一个数字”兜底。
+    """
+    answer_area = text.split("</think>", 1)[1] if "</think>" in text else text
+    match = re.search(r"\\boxed\{\s*(.*?)\s*\}", answer_area, flags=re.DOTALL)
+    return match.group(1).strip() if match else None
 
 
 def extract_thought(text: str):
@@ -87,8 +64,7 @@ def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
     user_content = (
         f"{persona_prompt}\n\n"
         f"{problem}\n\n"
-        "Please reason step by step. \n"
-        "Crucially, conclude your response with a separate line starting with 'Final Answer: ' followed by your answer in \\boxed{}."
+        f"Please reason step by step, and put your final answer within \\boxed{{}}."
     )
 
     messages = [{"role": "user", "content": user_content}]
@@ -98,7 +74,6 @@ def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
         tokenize=False,
         add_generation_prompt=True,
         enable_thinking=True,
-        thinking_budget=3072,
     )
 
 
@@ -128,7 +103,6 @@ sampling_params = SamplingParams(
     min_p=MIN_P,
     max_tokens=MAX_TOKENS,
     seed=TRIAL_SEED,
-    presence_penalty=1.5,
     
 )
 
