@@ -66,14 +66,9 @@ def extract_thought(text: str):
 
 def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
     user_content = (
-        f"Character Profile: {persona_prompt}\n\n"
-        f"Task: Solve the following math problem.\n"
-        f"Problem: {problem}\n\n"
-        f"Directives:\n"
-        f"1. You MUST reason inside <think> tags.\n"
-        f"2. Your reasoning should be straight to the point. Stop over-analyzing.\n"
-        f"3. You MUST end your response with: Final: \\boxed{{answer}}\n"
-        f"/think\n"
+        f"{persona_prompt}\n\n"
+        f"{problem}\n\n"
+        f"Please reason step by step, and put your final answer within \\boxed{{}}."
     )
 
     messages = [{"role": "user", "content": user_content}]
