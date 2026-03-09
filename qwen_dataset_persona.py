@@ -26,7 +26,7 @@ TOP_K = 20
 MIN_P = 0.0
 
 # 不要再往上加了，先稳住
-MAX_TOKENS = 4096
+MAX_TOKENS =20000
 
 # 小 batch 降低崩溃概率
 BATCH_SIZE = 4
@@ -89,7 +89,7 @@ print("✅ Tokenizer loaded.", flush=True)
 print("🧠 Initializing vLLM...", flush=True)
 llm = LLM(
     model=MODEL_PATH,
-    gpu_memory_utilization=0.2,
+    gpu_memory_utilization=0.8,
     enforce_eager=True,
 )
 print("✅ vLLM initialized.", flush=True)
