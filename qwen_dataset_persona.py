@@ -83,7 +83,7 @@ def build_prompt(tokenizer, persona_prompt: str, problem: str) -> str:
         tokenize=False,
         add_generation_prompt=True,
         enable_thinking=True,
-        presence_penalty=0.2，
+        presence_penalty=0.2,
     )
 
 
