@@ -44,12 +44,6 @@ def extract_boxed_answer(text: str):
     match = re.search(r"\\boxed\{([^}]*)\}", text)
     if match:
         return match.group(1).strip()
-
-    # 逻辑 2: 找加了空格或换行的 boxed
-    match_loose = re.search(r"boxed\s*\{\s*([^}]*)\s*\}", text)
-    if match_loose:
-        return match_loose.group(1).strip()
-
     return None
 
 
