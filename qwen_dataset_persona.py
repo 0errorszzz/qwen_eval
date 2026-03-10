@@ -29,7 +29,7 @@ MIN_P = 0.0
 MAX_TOKENS =32786
 
 # 小 batch 降低崩溃概率
-BATCH_SIZE = 60
+BATCH_SIZE = 5
 
 TRIAL_SEED_MAP = {
     "trial1": 1,
