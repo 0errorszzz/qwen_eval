@@ -1,17 +1,19 @@
 #!/bin/bash
-#SBATCH --job-name=qwen_aime_eval      # 任务在队列里的名字
-#SBATCH --output=logs/out_%A_%a.log    # 标准输出日志 (%A是总任务ID, %a是子任务ID)
-#SBATCH --error=logs/err_%A_%a.log     # 错误输出日志
-#SBATCH --gres=gpu:1                   # 关键：每个子任务申请 1 块显卡
-#SBATCH --ntasks=1                     # 每个子任务运行 1 个实例
-#SBATCH --cpus-per-task=4              # 每个子任务分配 4 个 CPU 核心
-#SBATCH --mem=32G                      # 每个子任务分配 32G 内存
-#SBATCH --array=0-4                    # 关键：同时提交 5 个子任务 (编号 0,1,2,3,4)
-#SBATCH --time=04:00:00
-#SBATCH --partition=shared
-# 创建日志文件夹，防止因为找不到目录而报错
+#SBATCH --job-name=qwen_aime_eval
+#SBATCH --partition=shared           # 你的房间名
+#SBATCH --account=uic458             # 你的买单账号 (重点！)
+#SBATCH --output=logs/out_%A_%a.log
+#SBATCH --error=logs/err_%A_%a.log
+#SBATCH --gres=gpu:1                 # 申请 1 块 GPU
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --array=0-4                  # 同时交 5 个任务
+#SBATCH --time=04:00:00              # 4 小时限制
+
+# 自动创建日志目录
 mkdir -p logs
 
-# 执行你的 Python 脚本
-# 这里的 ${SLURM_ARRAY_TASK_ID} 会自动变成 0, 1, 2, 3, 4 传给 Python 的 sys.argv[3]
+# 执行 Python 脚本
+# 传参: 数据集, Trial名, 当前分片ID
 python eval_vllm.py aime24 trial1 ${SLURM_ARRAY_TASK_ID}
