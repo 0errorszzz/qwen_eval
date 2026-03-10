@@ -8,7 +8,7 @@
 #SBATCH --mem=32G                      # 每个子任务分配 32G 内存
 #SBATCH --array=0-4                    # 关键：同时提交 5 个子任务 (编号 0,1,2,3,4)
 #SBATCH --time=04:00:00
-
+#SBATCH --partition=shared
 # 创建日志文件夹，防止因为找不到目录而报错
 mkdir -p logs
 
