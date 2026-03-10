@@ -42,9 +42,19 @@ TRIAL_SEED = TRIAL_SEED_MAP.get(CURRENT_TRIAL, 42)
 import re
 
 def extract_boxed_answer(text: str):
-    import re
+    # 1. 首先尝试原有的 \boxed{} 逻辑
     matches = re.findall(r"\\boxed\{([^}]*)\}", text)
-    return matches[-1].strip() if matches else None
+    if matches:
+        return matches[-1].strip()
+    
+    # 2. 保底逻辑：如果没找到 \boxed，就找 "Final Answer:" 后面的内容
+    # 匹配 "Final Answer:" 之后直到行尾或文本结束的数字/内容
+    backup_match = re.search(r"Final Answer:\s*(.*)", text, re.IGNORECASE)
+    if backup_match:
+        # 去掉末尾可能存在的标点符号（比如句号）
+        return backup_match.group(1).strip().rstrip('.')
+    
+    return None
 
 
 def extract_thought(text: str):
