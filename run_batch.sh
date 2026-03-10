@@ -4,7 +4,7 @@
 #SBATCH --account=uic458             # 你的买单账号 (重点！)
 #SBATCH --output=logs/out_%A_%a.log
 #SBATCH --error=logs/err_%A_%a.log
-#SBATCH --gres=gpu:1                 # 申请 1 块 GPU
+#SBATCH --gpus=1            # 申请 1 块 GPU
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
