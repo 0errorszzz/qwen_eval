@@ -12,10 +12,10 @@ RAW_TRAIT = "high_neuroticism"
 DATASET = sys.argv[1] if len(sys.argv) > 1 else "aime24"
 CURRENT_TRIAL = sys.argv[2] if len(sys.argv) > 2 else "trial1"
 
-MODEL_PATH = "Qwen/Qwen3-1.7"
+MODEL_PATH = "Qwen/Qwen3-1.7B"
 TARGET_TRAIT = f"persona_{RAW_TRAIT}"
 
-BASE_OUTPUT_DIR = Path("qwen_eval_logs_3_1.7B")
+BASE_OUTPUT_DIR = Path("qwen_eval_logs_3_1.7")
 PERSONA_FILE = Path("persona.yaml")
 DATA_ROOT = Path("data")
 
